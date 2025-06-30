@@ -124,10 +124,12 @@
     <div id="deal-count-by-ae" class="chart"></div>
     <div id="mrr-by-source" class="chart"></div>
     <div id="deals-table" class="chart"></div>
+    <div id="conversion-tables" class="chart"></div>
   </div>
 
   <script>
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR9buod_EgMJ7Lnh1PtZcPLQVPo7spIkx4vOguoakGmFX1aVZv46IpDISzTCnLwp4vm0UE6BJea2EKT/pub?output=csv";
+    const conversionCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRioUMMgBVeaXAxJ_YIq3FYpL1G39KXUt35hRykoyQl8B_BU-uqH3LVDRAdKn1_nyPSoou74fUMmybs/pub?output=csv";
     let fullData = [], filteredData = [];
 
     function toggleTheme() {
@@ -137,7 +139,6 @@
     function renderDashboard(data) {
       const aeFilter = document.getElementById("ae-filter").value;
       const visibleData = aeFilter ? data.filter(r => r.AE === aeFilter) : data;
-
       const totalMRR = visibleData.reduce((sum, r) => sum + parseFloat(r.MRR.replace(/[$,]/g, "")), 0);
       const mrrByAE = {}, dealCountByAE = {}, mrrBySource = {}, tableRows = ["<table><thead><tr><th>Deal</th><th>AE</th><th>MRR</th><th>Source</th></tr></thead><tbody>"];
 
@@ -145,7 +146,7 @@
         const ae = r.AE;
         const mrr = parseFloat(r.MRR.replace(/[$,]/g, ""));
         const source = r["Outbound/Inbound"];
-        const deal = r["June Pipeline (Inbound + Outbound)"];
+        const deal = r.Deal || r["June Pipeline (Inbound + Outbound)"] || "";
         mrrByAE[ae] = (mrrByAE[ae] || 0) + mrr;
         dealCountByAE[ae] = (dealCountByAE[ae] || 0) + 1;
         mrrBySource[source] = (mrrBySource[source] || 0) + mrr;
@@ -173,6 +174,33 @@
       },
       error: function() {
         document.getElementById("loading").innerHTML = "<span style='color:red;'>Failed to load data.</span>";
+      }
+    });
+
+    Papa.parse(conversionCsvUrl, {
+      download: true,
+      header: false,
+      complete: function(results) {
+        const rows = results.data.map(r => r.map(cell => (cell || '').trim())).filter(r => r.length > 0 && r[0]);
+        let html = "";
+        let i = 0;
+        while (i < rows.length) {
+          const title = rows[i][0];
+          i++;
+          const headers = rows[i];
+          i++;
+          let tableRows = [];
+          while (i < rows.length && rows[i][0] && !rows[i][0].toLowerCase().includes("conversion")) {
+            tableRows.push(rows[i]);
+            i++;
+          }
+          html += `<h2>${title}</h2><table><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+          tableRows.forEach(row => {
+            html += `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`;
+          });
+          html += "</table>";
+        }
+        document.getElementById("conversion-tables").innerHTML = html;
       }
     });
   </script>
