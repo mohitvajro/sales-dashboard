@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Sales Performance Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --main-bg: linear-gradient(135deg, #e0e7ff 0%, #f8fafc 100%);
+      --card-bg: rgba(255,255,255,0.85);
+      --card-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+      --accent: #6366f1;
+      --accent2: #60a5fa;
+      --text-main: #222b45;
+      --text-light: #fff;
+      --table-bg: rgba(245,250,255,0.98);
+      --table-hover: #f1f5f9;
+      --th-bg: linear-gradient(90deg, #e0e7ff 0%, #f1f5f9 100%);
+      --footer: #7b8794;
+    }
+    [data-theme="dark"] {
+      --main-bg: linear-gradient(135deg, #232946 0%, #16161a 100%);
+      --card-bg: rgba(34, 40, 49, 0.95);
+      --card-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.28);
+      --accent: #a5b4fc;
+      --accent2: #818cf8;
+      --text-main: #f4f4f5;
+      --text-light: #fff;
+      --table-bg: #232946;
+      --table-hover: #1a1a2e;
+      --th-bg: linear-gradient(90deg, #232946 0%, #16161a 100%);
+      --footer: #a1a1aa;
+    }
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      background: var(--main-bg);
+      min-height: 100vh;
+      color: var(--text-main);
+      transition: background 0.3s, color 0.3s;
+    }
+    .dashboard-container {
+      max-width: 1200px;
+      margin: 36px auto 0 auto;
+      background: var(--card-bg);
+      border-radius: 24px;
+      box-shadow: var(--card-shadow);
+      padding: 36px 40px 40px 40px;
+      backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(255,255,255,0.25);
+      position: relative;
+    }
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 18px;
+      justify-content: space-between;
+    }
+    .dashboard-logo {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2em; color: #fff; font-weight: 700;
+      box-shadow: 0 2px 8px #6366f133;
+    }
+    .dashboard-logo-img {
+      background: linear-gradient(135deg,#232946 0%,#6366f1 100%);
+      box-shadow: 0 2px 8px #6366f133;
+      padding: 0;
+      min-width: 48px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dashboard-logo-img img {
+      border-radius: 8px;
+      box-shadow: 0 2px 8px #6366f133;
+      height: 40px;
+      width: auto;
+      display: block;
+      background: transparent;
+    }
+    .dashboard-title-wrap { display: flex; align-items: center; gap: 18px; }
+    h1 {
+      margin: 0 0 0 0;
+      font-size: 2.3em;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .theme-toggle {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-left: 18px;
+    }
+    .theme-toggle:hover {
+      background: var(--accent2);
+    }
+    .filters-row {
+      display: flex;
+      gap: 18px;
+      margin-bottom: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .filter-label {
+      font-weight: 600;
+      margin-right: 6px;
+    }
+    select, .search-input {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid #c7d2fe;
+      font-size: 1em;
+      background: var(--table-bg);
+      color: var(--text-main);
+      outline: none;
+      margin-right: 12px;
+      transition: border 0.2s;
+    }
+    select:focus, .search-input:focus {
+      border: 1.5px solid var(--accent);
+    }
+    .kpi-row {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .kpi-card {
+      flex: 1 1 180px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      color: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px #6366f122;
+      padding: 18px 24px 14px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      min-width: 180px;
+      margin-bottom: 8px;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+    .kpi-card .kpi-label {
+      font-size: 1em;
+      font-weight: 500;
+      opacity: 0.85;
+      margin-bottom: 4px;
+    }
+    .kpi-card .kpi-value {
+      font-size: 2.1em;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .kpi-card .kpi-sub {
+      font-size: 0.98em;
+      opacity: 0.7;
+    }
+    h2 {
+      margin: 36px 0 12px 0;
+      font-size: 1.25em;
+      color: #3b4a5a;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .chart-container {
+      margin-bottom: 36px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: 0 2px 12px #6366f122;
+      padding: 18px 18px 8px 18px;
+      transition: box-shadow 0.2s;
+    }
+    .chart-container:hover {
+      box-shadow: 0 6px 24px #6366f144;
+    }
+    #loading {
+      font-size: 1.1em;
+      color: var(--accent);
+      margin-bottom: 18px;
+      font-weight: 500;
+    }
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      background: var(--table-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 18px;
+      box-shadow: 0 1px 6px #6366f111;
+      transition: box-shadow 0.2s;
+    }
+    table:hover {
+      box-shadow: 0 4px 16px #6366f122;
+    }
+    th, td {
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid #e3e8ee;
+      font-size: 1em;
+    }
+    th {
+      background: var(--th-bg);
+      font-weight: 700;
+      color: #374151;
+      border-bottom: 2px solid #c7d2fe;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background: var(--table-hover);
+      transition: background 0.2s;
+    }
+    .conversion-section {
+      margin-top: 32px;
+    }
+    .conversion-table-title {
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
+      text-align: center;
+      font-weight: 700;
+      font-size: 1.1em;
+      padding: 10px 0;
+      border-radius: 12px 12px 0 0;
+      color: #fff;
+      letter-spacing: 0.2px;
+      margin-bottom: -2px;
+    }
+    /* Section Styles */
+    .section-dashboard, .section-leaderboard, .section-conversion {
+      display: block;
+    }
+    @media (max-width: 900px) {
+      .dashboard-container { padding: 12px; }
+      h1 { font-size: 1.5em; }
+      h2 { font-size: 1em; }
+      .chart-container { padding: 8px; }
+      .kpi-row { flex-direction: column; gap: 12px; }
+    }
+    /* Outbound Table Responsive Scroll */
+    .conversion-table-title + table {
+      display: block;
+      overflow-x: auto;
+      max-width: 100%;
+      min-width: 600px;
+      white-space: nowrap;
+    }
+    .conversion-table-title + table th, .conversion-table-title + table td {
+      white-space: nowrap;
+    }
+    /* Leaderboard Table Responsive Scroll & Style */
+    #leaderboard-content {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+    #leaderboard-content table {
+      min-width: 600px;
+      width: max-content;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--table-bg);
+      border-radius: 12px;
+      box-shadow: 0 1px 6px #6366f111;
+      margin-bottom: 18px;
+    }
+    #leaderboard-content th, #leaderboard-content td {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 1em;
+      white-space: nowrap;
+      border-bottom: 1px solid #e3e8ee;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #leaderboard-content th {
+      position: sticky;
+      top: 0;
+      background: var(--th-bg);
+      z-index: 2;
+      font-weight: 700;
+      color: #374151;
+      border-bottom: 2px solid #c7d2fe;
+    }
+    #leaderboard-content tr:nth-child(even) td {
+      background: #f5f7fa;
+    }
+    #leaderboard-content tr:hover td {
+      background: var(--table-hover);
+      transition: background 0.2s;
+    }
+    /* Outbound Table Responsive Scroll & Style */
+    #conversion-outbound-tables {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+    #conversion-outbound-tables table {
+      min-width: 600px;
+      width: max-content;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--table-bg);
+      border-radius: 12px;
+      box-shadow: 0 1px 6px #6366f111;
+      margin-bottom: 18px;
+    }
+    #conversion-outbound-tables th, #conversion-outbound-tables td {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 1em;
+      white-space: nowrap;
+      border-bottom: 1px solid #e3e8ee;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #conversion-outbound-tables th {
+      position: sticky;
+      top: 0;
+      background: var(--th-bg);
+      z-index: 2;
+      font-weight: 700;
+      color: #374151;
+      border-bottom: 2px solid #c7d2fe;
+    }
+    #conversion-outbound-tables tr:nth-child(even) td {
+      background: #f5f7fa;
+    }
+    #conversion-outbound-tables tr:hover td {
+      background: var(--table-hover);
+      transition: background 0.2s;
+    }
+    #leaderboard-content, #conversion-outbound-content {
+      overflow-x: auto;
+      max-width: 100%;
+      margin-bottom: 24px;
+    }
+    #leaderboard-content table, #conversion-outbound-content table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 600px;
+      background: #fff;
+      font-size: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    #leaderboard-content th, #conversion-outbound-content th {
+      position: sticky;
+      top: 0;
+      background: #f7f7f7;
+      z-index: 2;
+      font-weight: 600;
+      padding: 10px 12px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    #leaderboard-content td, #conversion-outbound-content td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #leaderboard-content tr:nth-child(even), #conversion-outbound-content tr:nth-child(even) {
+      background: #fafbfc;
+    }
+    #leaderboard-content tr:hover, #conversion-outbound-content tr:hover {
+      background: #f0f4fa;
+    }
+    #leaderboard-content .highlight, #conversion-outbound-content .highlight {
+      background: #fffbe6 !important;
+    }
+    .conversion-table-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin: 12px 0 8px 0;
+      color: #222;
+    }
+    /* Top Navigation Bar Styles */
+    .top-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 58px;
+      background: #fff;
+      box-shadow: 0 2px 12px #6366f122;
+      display: flex;
+      align-items: center;
+      z-index: 1000;
+      padding: 0 32px;
+      gap: 18px;
+      border-bottom: 1.5px solid #e3e8ee;
+    }
+    .top-nav .nav-logo {
+      font-size: 2em;
+      font-weight: 700;
+      color: #6366f1;
+      margin-right: 18px;
+      user-select: none;
+    }
+    .top-nav .nav-link {
+      color: #374151;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.08em;
+      padding: 8px 18px;
+      border-radius: 8px;
+      transition: background 0.18s, color 0.18s;
+      margin-right: 6px;
+      position: relative;
+    }
+    .top-nav .nav-link.active, .top-nav .nav-link:hover {
+      background: linear-gradient(90deg, #e0e7ff 0%, #f1f5f9 100%);
+      color: #6366f1;
+    }
+    @media (max-width: 700px) {
+      .top-nav { padding: 0 8px; }
+      .top-nav .nav-link { font-size: 0.98em; padding: 7px 10px; }
+    }
+    .dashboard-container {
+      margin-top: 80px; /* offset for nav */
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <nav class="top-nav">
+    <div class="nav-logo">🚀</div>
+    <a href="#dashboard" class="nav-link">Dashboard</a>
+    <a href="#leaderboard" class="nav-link">Leaderboard</a>
+    <a href="#conversion" class="nav-link">Inbound Conversion</a>
+    <a href="#outbound" class="nav-link">Outbound Conversion</a>
+  </nav>
+  <div class="dashboard-container section-dashboard" id="dashboard">
+    <div class="dashboard-header">
+      <div class="dashboard-logo dashboard-logo-img" style="background:none; box-shadow:none; padding:0; min-width:48px; min-height:48px; display:flex;align-items:center;justify-content:center; font-size:2.5em; color:#f59e42;">
+        🚀
+      </div>
+      <h1>Live Sales Performance Dashboard</h1>
+      <button id="dark-mode-toggle" style="margin-left:auto; background:#222b45; color:#fff; border:none; border-radius:8px; padding:8px 16px; font-weight:600; cursor:pointer;">🌙 Dark Mode</button>
+    </div>
+    <div class="kpi-cards" style="display:flex; gap:18px; margin-bottom:18px; flex-wrap:wrap;"></div>
+    <div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:18px; align-items:center;">
+      <div>
+        <label for="ae-filter" style="font-weight:600; color:#6366f1;">AE:</label>
+        <select id="ae-filter" style="margin-left:6px; padding:4px 10px; border-radius:6px; border:1px solid #c7d2fe;"></select>
+      </div>
+      <div>
+        <label for="source-filter" style="font-weight:600; color:#6366f1;">Source:</label>
+        <select id="source-filter" style="margin-left:6px; padding:4px 10px; border-radius:6px; border:1px solid #c7d2fe;"></select>
+      </div>
+      <div style="flex:1;"></div>
+      <input id="deal-search" type="text" placeholder="Search deals or AE..." style="padding:7px 14px; border-radius:8px; border:1px solid #c7d2fe; min-width:220px; font-size:1em;" />
+    </div>
+    <div id="loading">Loading data, please wait...</div>
+    <div id="trendline-chart" class="chart-container"></div>
+    <div id="total-mrr-summary" class="chart-container"></div>
+    <div id="mrr-by-ae" class="chart-container"></div>
+    <div id="deal-count-by-ae" class="chart-container"></div>
+    <div id="mrr-by-source" class="chart-container"></div>
+    <div id="mrr-table" class="chart-container"></div>
+    <!-- Leaderboard Section (now always visible) -->
+    <div class="dashboard-header" id="leaderboard" style="margin-top:40px;">
+      <div class="dashboard-logo">🏆</div>
+      <h1>Leaderboard</h1>
+    </div>
+    <div id="leaderboard-loading">Loading leaderboard...</div>
+    <div id="leaderboard-content"></div>
+    <!-- Conversion Metrics Section (now always visible) -->
+    <div class="dashboard-header" id="conversion" style="margin-top:40px;">
+      <div class="dashboard-logo">📊</div>
+      <h1>Conversion % - Inbound</h1>
+    </div>
+    <div id="conversion-tables"></div>
+    <!-- Conversion % - Outbound Section -->
+    <div class="dashboard-header" id="outbound" style="margin-top:40px;">
+      <div class="dashboard-logo">📈</div>
+      <h1>Conversion % - Outbound</h1>
+    </div>
+    <div id="conversion-outbound-tables"></div>
+    <div id="conversion-outbound-content" style="overflow-x:auto;max-width:100%;"></div>
+  </div>
+  <div class="footer">&copy; 2025 Your Company. All rights reserved.</div>
+  <script>
+    // --- THEME VARS ---
+    const lightVars = {
+      '--bg-main': '#e0e7ff',
+      '--bg-grad': '#f8fafc',
+      '--card-bg': 'rgba(255,255,255,0.85)',
+      '--text-main': '#222b45',
+      '--kpi-bg': 'rgba(245,250,255,0.98)',
+      '--kpi-shadow': '0 2px 12px #6366f122',
+    };
+    const darkVars = {
+      '--bg-main': '#181c2a',
+      '--bg-grad': '#232946',
+      '--card-bg': 'rgba(34,43,69,0.92)',
+      '--text-main': '#f1f5f9',
+      '--kpi-bg': 'rgba(34,43,69,0.98)',
+      '--kpi-shadow': '0 2px 12px #6366f144',
+    };
+    function setTheme(vars) {
+      for (const k in vars) document.body.style.setProperty(k, vars[k]);
+    }
+    let darkMode = false;
+    document.getElementById('dark-mode-toggle').onclick = function() {
+      darkMode = !darkMode;
+      setTheme(darkMode ? darkVars : lightVars);
+      this.innerHTML = darkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
+    };
+    setTheme(lightVars);
+
+    // Main sales data
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR9buod_EgMJ7Lnh1PtZcPLQVPo7spIkx4vOguoakGmFX1aVZv46IpDISzTCnLwp4vm0UE6BJea2EKT/pub?output=csv";
+    // --- Main Sales Data ---
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        document.getElementById("loading").style.display = "none";
+        const data = results.data;
+        const mrrCol = "MRR";
+        const aeCol = "AE";
+        const sourceCol = "Outbound/Inbound";
+        const dealCol = "Deals";
+        const dateCol = data[0]["Week"] ? "Week" : (data[0]["Date"] ? "Date" : null);
+        let allAEs = new Set();
+        let allSources = new Set();
+        let filteredData = [];
+        // Clean and collect unique AEs and Sources
+        data.forEach(row => {
+          if (row[mrrCol] && row[mrrCol].includes("$") && row[aeCol]) {
+            allAEs.add(row[aeCol].trim());
+            allSources.add((row[sourceCol] || '').trim());
+          }
+        });
+        allAEs = Array.from(allAEs).sort();
+        allSources = Array.from(allSources).sort();
+        // Populate dropdowns
+        const aeFilter = document.getElementById('ae-filter');
+        const sourceFilter = document.getElementById('source-filter');
+        aeFilter.innerHTML = '<option value="">All</option>' + allAEs.map(ae => `<option value="${ae}">${ae}</option>`).join("");
+        sourceFilter.innerHTML = '<option value="">All</option>' + allSources.map(src => `<option value="${src}">${src}</option>`).join("");
+        // --- Filtering/search logic ---
+        function getFiltered() {
+          const aeVal = aeFilter.value;
+          const srcVal = sourceFilter.value;
+          const searchVal = (document.getElementById('deal-search').value || '').toLowerCase();
+          return data.filter(row => {
+            if (!(row[mrrCol] && row[mrrCol].includes("$") && row[aeCol])) return false;
+            if (aeVal && row[aeCol].trim() !== aeVal) return false;
+            if (srcVal && (row[sourceCol] || '').trim() !== srcVal) return false;
+            if (searchVal) {
+              const deal = (row[dealCol] || '').toLowerCase();
+              const ae = (row[aeCol] || '').toLowerCase();
+              if (!deal.includes(searchVal) && !ae.includes(searchVal)) return false;
+            }
+            return true;
+          });
+        }
+        // --- KPI Cards ---
+        function renderKPIs(filtered) {
+          const totalMRR = filtered.reduce((sum, row) => sum + parseFloat(row[mrrCol].replace(/[$,]/g, "")), 0);
+          const totalDeals = filtered.length;
+          const avgDeal = totalDeals ? totalMRR / totalDeals : 0;
+          let mrrByAE = {};
+          filtered.forEach(row => {
+            const ae = (row[aeCol] || '').trim();
+            const mrr = parseFloat((row[mrrCol] || "0").replace(/[$,]/g, ""));
+            if (!mrrByAE[ae]) mrrByAE[ae] = 0;
+            mrrByAE[ae] += mrr;
+          });
+          let topAE = Object.keys(mrrByAE).reduce((a, b) => mrrByAE[a] > mrrByAE[b] ? a : b, '');
+          let topAEMRR = mrrByAE[topAE] || 0;
+          document.querySelector('.kpi-cards').innerHTML = `
+            <div class="kpi-card"><div class="kpi-label">Total MRR</div><div class="kpi-value">$${totalMRR.toLocaleString()}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Total Deals</div><div class="kpi-value">${totalDeals}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Avg Deal Size</div><div class="kpi-value">$${avgDeal.toLocaleString(undefined, {maximumFractionDigits:0})}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Top AE</div><div class="kpi-value">${topAE}</div><div class="kpi-sub">$${topAEMRR.toLocaleString()}</div></div>
+          `;
+        }
+        // --- Trendline Chart ---
+        function renderTrendline(filtered) {
+          if (!dateCol) { document.getElementById('trendline-chart').innerHTML = ''; return; }
+          let mrrByDate = {};
+          filtered.forEach(row => {
+            const date = row[dateCol];
+            const mrr = parseFloat((row[mrrCol] || "0").replace(/[$,]/g, ""));
+            if (!mrrByDate[date]) mrrByDate[date] = 0;
+            mrrByDate[date] += mrr;
+          });
+          const dates = Object.keys(mrrByDate).sort();
+          const mrrs = dates.map(d => mrrByDate[d]);
+          Plotly.newPlot('trendline-chart', [{
+            x: dates,
+            y: mrrs,
+            type: 'scatter',
+            mode: 'lines+markers',
+            marker: { color: '#636efa' },
+            line: { shape: 'spline' },
+            hovertemplate: 'Date: %{x}<br>MRR: $%{y:,.0f}<extra></extra>'
+          }], {
+            title: 'MRR Trend Over Time',
+            margin: { t: 40 },
+            xaxis: { title: dateCol },
+            yaxis: { title: 'MRR ($)' }
+          });
+        }
+        // --- Main Charts ---
+        function renderCharts(filtered) {
+          // MRR by AE
+          let mrrByAE = {};
+          let dealCountByAE = {};
+          let mrrBySource = {};
+          filtered.forEach(row => {
+            const ae = (row[aeCol] || '').trim();
+            const mrr = parseFloat((row[mrrCol] || "0").replace(/[$,]/g, ""));
+            const source = (row[sourceCol] || '').trim();
+            if (!mrrByAE[ae]) mrrByAE[ae] = 0;
+            if (!dealCountByAE[ae]) dealCountByAE[ae] = 0;
+            if (!mrrBySource[source]) mrrBySource[source] = 0;
+            mrrByAE[ae] += mrr;
+            dealCountByAE[ae] += 1;
+            mrrBySource[source] += mrr;
+          });
+          Plotly.newPlot("mrr-by-ae", [{
+            x: Object.keys(mrrByAE),
+            y: Object.values(mrrByAE),
+            type: "bar",
+            marker: { color: "#636efa" },
+            hovertemplate: 'AE: %{x}<br>MRR: $%{y:,.0f}<extra></extra>'
+          }], { title: "MRR by AE" });
+          Plotly.newPlot("deal-count-by-ae", [{
+            x: Object.keys(dealCountByAE),
+            y: Object.values(dealCountByAE),
+            type: "bar",
+            marker: { color: "#EF553B" },
+            hovertemplate: 'AE: %{x}<br>Deals: %{y}<extra></extra>'
+          }], { title: "Deal Count by AE" });
+          Plotly.newPlot("mrr-by-source", [{
+            labels: Object.keys(mrrBySource),
+            values: Object.values(mrrBySource),
+            type: "pie",
+            hovertemplate: 'Source: %{label}<br>MRR: $%{value:,.0f}<extra></extra>'
+          }], { title: "MRR by Source (IB/OB)" });
+        }
+        // --- Deals Table ---
+        function renderTable(filtered) {
+          if (!filtered.length) {
+            document.getElementById("mrr-table").innerHTML = '<h2>Deals Table</h2><div style="padding:18px;">No deals found.</div>';
+            return;
+          }
+          // Dynamically get all columns from the first row
+          const columns = Object.keys(filtered[0]);
+          let html = `<h2>Deals Table</h2><table><tr>${columns.map(col => `<th>${col}</th>`).join("")}</tr>`;
+          filtered.forEach(row => {
+            html += `<tr>${columns.map(col => `<td>${row[col] || ''}</td>`).join("")}</tr>`;
+          });
+          html += '</table>';
+          document.getElementById("mrr-table").innerHTML = html;
+        }
+        // --- Main render function ---
+        function renderAll() {
+          const filtered = getFiltered();
+          renderKPIs(filtered);
+          renderTrendline(filtered);
+          renderCharts(filtered);
+          renderTable(filtered);
+        }
+        // --- Event listeners ---
+        aeFilter.onchange = renderAll;
+        sourceFilter.onchange = renderAll;
+        document.getElementById('deal-search').oninput = renderAll;
+        // Initial render
+        renderAll();
+      },
+      error: function(err) {
+        document.getElementById("loading").innerHTML = '<span style="color:red">Failed to load data.</span>';
+      }
+    });
+
+    // --- Conversion % - Inbound Data ---
+    const conversionCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRioUMMgBVeaXAxJ_YIq3FYpL1G39KXUt35hRykoyQl8B_BU-uqH3LVDRAdKn1_nyPSoou74fUMmybs/pub?output=csv";
+    console.log('Fetching conversion inbound data from', conversionCsvUrl);
+    Papa.parse(conversionCsvUrl, {
+      download: true,
+      header: false,
+      complete: function(results) {
+        console.log('Conversion Inbound data results:', results);
+        const rows = results.data
+          .map(r => r.map(cell => (cell || '').trim()))
+          .filter(r => r.length > 0 && r[0]);
+        let html = "";
+        let chartConfig = null;
+        if (rows.length >= 2) {
+          const headers = rows[0];
+          const tableRows = rows.slice(1);
+          // Dynamic Table HTML
+          html += `<div class='conversion-table-title'>Conversion % - Inbound</div><table><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+          tableRows.forEach(row => {
+            html += `<tr>${headers.map((_, idx) => `<td>${row[idx] || ''}</td>`).join("")}</tr>`;
+          });
+          html += "</table>";
+          // Add chart container div
+          html += `<div id='conversion-inbound-chart-0' class='chart-container' style='min-width:700px;'></div>`;
+          // --- DYNAMIC COLUMN INDEX DETECTION ---
+          const segIdx = headers.findIndex(h => h.toLowerCase().includes("segment"));
+          const mqlIdx = headers.findIndex(h => h.toLowerCase().includes("installed") || h.toLowerCase() === "mql");
+          const taIdx = headers.findIndex(h => h.toLowerCase().includes("trial activated") || h.toLowerCase().includes("ta"));
+          const mrrIdx = headers.findIndex(h => h.toLowerCase().includes("mrr"));
+          const pctIdx = headers.findIndex(h => h.toLowerCase().includes("mql to ta") || h.toLowerCase().includes("conversion %"));
+          if (segIdx >= 0 && mqlIdx >= 0 && taIdx >= 0 && mrrIdx >= 0) {
+            const segments = tableRows.map(r => r[segIdx]);
+            const mql = tableRows.map(r => parseFloat(r[mqlIdx] || 0));
+            const ta = tableRows.map(r => parseFloat(r[taIdx] || 0));
+            const mrr = tableRows.map(r => parseFloat((r[mrrIdx] || "0").replace(/[$,]/g, "")));
+            // Calculate conversion % if not present or parse if present
+            let pct = [];
+            if (pctIdx >= 0) {
+              pct = tableRows.map(r => {
+                let val = r[pctIdx] || "";
+                if (val.includes("%")) val = val.replace("%", "");
+                return parseFloat(val) || 0;
+              });
+            } else {
+              pct = mql.map((v, idx) => v ? (ta[idx] / v) * 100 : 0);
+            }
+            // For chart, convert pct to 0-1 range for Plotly percentage axis
+            const pctForChart = pct.map(v => v / 100);
+            chartConfig = { segments, mql, ta, mrr, pct: pctForChart };
+          }
+        } else {
+          html = '<span style="color:red">No data found in the Conversion % - Inbound sheet.</span>';
+          console.warn('No data found in the Conversion % - Inbound sheet.');
+        }
+        // Wrap table and chart container in a horizontally scrollable div for consistency
+        document.getElementById("conversion-tables").innerHTML = `
+          <div style='overflow-x:auto;max-width:100%;'>
+            <div style='min-width:700px;'>
+              ${html.replace(
+                /<div id='conversion-inbound-chart-0'[^>]*><\/div>/,
+                ""
+              )}
+              <div id='conversion-inbound-chart-0' class='chart-container' style='min-width:700px;'></div>
+            </div>
+          </div>
+        `;
+        // Render chart after table
+        if (chartConfig) {
+          setTimeout(() => {
+            Plotly.newPlot('conversion-inbound-chart-0', [
+              { x: chartConfig.segments, y: chartConfig.mql, name: 'MQL (Installs)', type: 'bar' },
+              { x: chartConfig.segments, y: chartConfig.ta, name: 'TA (Trial Activations)', type: 'bar' },
+              { x: chartConfig.segments, y: chartConfig.mrr, name: 'MRR', type: 'bar' },
+              { x: chartConfig.segments, y: chartConfig.pct, name: 'MQL to TA %', type: 'scatter', yaxis: 'y2', mode: 'lines+markers', marker: { color: '#EF553B' }, line: { dash: 'dot' } }
+            ], {
+              title: 'Conversion % - Inbound',
+              barmode: 'group',
+              yaxis: { title: 'Count / MRR', side: 'left' },
+              yaxis2: { title: 'MQL to TA %', overlaying: 'y', side: 'right', tickformat: ',.0%', range: [0, 1] },
+              legend: { orientation: 'h', x: 0.5, y: -0.2, xanchor: 'center' },
+              margin: { t: 70 }
+            });
+          }, 0);
+        }
+      },
+      error: function(err) {
+        console.error('Conversion Inbound data error:', err);
+        document.getElementById("conversion-tables").innerHTML = '<span style="color:red">Failed to load conversion inbound data.</span>';
+      }
+    });
+
+    // --- Conversion % - Outbound Data ---
+    const conversionOutboundCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTUX7qLOp_QmyF1qy6vfc_MhxWsep8bCuFMNx58AfalgzrTintxVnZpNbJ3piOoHYZ39sAylK9XMH2S/pub?output=csv";
+    console.log('Fetching conversion outbound data from', conversionOutboundCsvUrl);
+    Papa.parse(conversionOutboundCsvUrl, {
+      download: true,
+      header: false,
+      complete: function(results) {
+        console.log('Conversion Outbound data results:', results);
+        const rows = results.data
+          .map(r => r.map(cell => (cell || '').trim()))
+          .filter(r => r.length > 0 && r[0]);
+        let html = "";
+        let chartConfig = null;
+        if (rows.length >= 2) {
+          const headers = rows[0];
+          const tableRows = rows.slice(1);
+          // Dynamic Table HTML
+          html += `<div class='conversion-table-title'>Conversion % - Outbound</div><table><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+          tableRows.forEach(row => {
+            html += `<tr>${headers.map((_, idx) => `<td>${row[idx] || ''}</td>`).join("")}</tr>`;
+          });
+          html += "</table>";
+          // Add chart container div
+          html += `<div id='conversion-outbound-chart-0' class='chart-container'></div>`;
+          // --- DYNAMIC COLUMN INDEX DETECTION ---
+          const segIdx = headers.findIndex(h => h.toLowerCase().includes("segment"));
+          const mqlIdx = headers.findIndex(h => h.toLowerCase().includes("installed") || h.toLowerCase().includes("mql"));
+          const taIdx = headers.findIndex(h => h.toLowerCase().includes("trial activated") || h.toLowerCase().includes("ta"));
+          const mrrIdx = headers.findIndex(h => h.toLowerCase().includes("mrr"));
+          const pipelineIdx = headers.findIndex(h => h.toLowerCase().includes("pipeline"));
+          if (segIdx >= 0 && mqlIdx >= 0 && taIdx >= 0 && mrrIdx >= 0) {
+            const segments = tableRows.map(r => r[segIdx]);
+            const mql = tableRows.map(r => parseFloat(r[mqlIdx] || 0));
+            const ta = tableRows.map(r => parseFloat(r[taIdx] || 0));
+            const mrr = tableRows.map(r => parseFloat((r[mrrIdx] || "0").replace(/[$,]/g, "")));
+            const pipeline = pipelineIdx >= 0 ? tableRows.map(r => parseFloat(r[pipelineIdx] || 0)) : null;
+            let pct = mql.map((v, idx) => {
+              let val = v ? (ta[idx] / v) * 100 : 0;
+              return val > 100 ? 100 : val;
+            });
+            chartConfig = { segments, mql, ta, mrr, pipeline, pct };
+          }
+        } else {
+          html = '<span style="color:red">No data found in the Conversion % - Outbound sheet.</span>';
+          console.warn('No data found in the Conversion % - Outbound sheet.');
+        }
+        document.getElementById("conversion-outbound-content").innerHTML = html;
+        // Render chart after table
+        if (chartConfig) {
+          setTimeout(() => {
+            const traces = [];
+            if (chartConfig.pipeline) {
+              traces.push({
+                x: chartConfig.segments,
+                y: chartConfig.pipeline,
+                name: 'In Pipeline',
+                type: 'bar',
+                marker: { color: '#6c63ff' },
+                text: chartConfig.pipeline.map(v => v ? v : ''),
+                textposition: 'auto',
+                hovertemplate: 'In Pipeline: %{y}<extra></extra>'
+              });
+            }
+            traces.push(
+              {
+                x: chartConfig.segments,
+                y: chartConfig.mql,
+                name: 'Installed',
+                type: 'bar',
+                marker: { color: '#1f77b4' },
+                text: chartConfig.mql.map(v => v ? v : ''),
+                textposition: 'auto',
+                hovertemplate: 'Installed: %{y}<extra></extra>'
+              },
+              {
+                x: chartConfig.segments,
+                y: chartConfig.ta,
+                name: 'Trial Activated',
+                type: 'bar',
+                marker: { color: '#2ca02c' },
+                text: chartConfig.ta.map(v => v ? v : ''),
+                textposition: 'auto',
+                hovertemplate: 'Trial Activated: %{y}<extra></extra>'
+              },
+              {
+                x: chartConfig.segments,
+                y: chartConfig.mrr,
+                name: 'MRR',
+                type: 'bar',
+                marker: { color: '#ffb347' },
+                text: chartConfig.mrr.map(v => v ? `$${v}` : ''),
+                textposition: 'auto',
+                hovertemplate: 'MRR: $%{y}<extra></extra>'
+              },
+              {
+                x: chartConfig.segments,
+                y: chartConfig.pct,
+                name: 'Conversion %',
+                type: 'scatter',
+                mode: 'markers+text',
+                yaxis: 'y2',
+                marker: { color: '#ff1744', size: 14, symbol: 'circle' },
+                text: chartConfig.pct.map(v => v ? v.toFixed(0) + '%' : ''),
+                textposition: 'top center',
+                hovertemplate: 'Conversion %: %{y:.0f}%<extra></extra>'
+              }
+            );
+            const layout = {
+              barmode: 'group',
+              title: 'Conversion % - Outbound',
+              legend: { orientation: 'h', y: -0.2 },
+              yaxis: { title: 'Count', rangemode: 'tozero' },
+              yaxis2: {
+                title: 'Conversion %',
+                overlaying: 'y',
+                side: 'right',
+                range: [0, 100],
+                showgrid: false,
+                tickformat: ',.0%'
+              },
+              margin: { t: 60, b: 60 },
+              hovermode: 'x unified',
+              annotations: [
+                {
+                  xref: 'paper', yref: 'paper',
+                  x: 1, y: 1.15,
+                  xanchor: 'right', yanchor: 'top',
+                  text: "🟦 <b>In Pipeline</b> = Deals in pipeline (highlighted)",
+                  showarrow: false,
+                  font: { size: 13, color: '#6c63ff' }
+                }
+              ]
+            };
+            // Render chart in static container
+            Plotly.newPlot('conversion-outbound-chart-0', traces, layout, {responsive:true});
+          }, 0);
+        }
+      },
+      error: function(err) {
+        console.error('Conversion Outbound data error:', err);
+        document.getElementById("conversion-outbound-content").innerHTML = '<span style="color:red">Failed to load conversion outbound data.</span>';
+      }
+    });
+
+    // --- Leaderboard Data ---
+    const leaderboardCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQLlDYkYa6wmOrXfP-BPm2HU9FRhaGNKIOPPcrinS8L7KktKR5nCZ_Pyttx99EhU3kJgXy2P5zDjZ6L/pub?output=csv";
+    Papa.parse(leaderboardCsvUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        document.getElementById("leaderboard-loading").style.display = "none";
+        try {
+          const data = results.data.filter(row => Object.values(row).some(cell => cell && cell.trim() !== ""));
+          if (!data.length) {
+            document.getElementById("leaderboard-content").innerHTML = '<span style="color:red">No leaderboard data found.</span>';
+            return;
+          }
+          // Dynamic Table
+          const headers = Object.keys(data[0]);
+          let html = `<table><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+          data.forEach(row => {
+            html += `<tr>${headers.map(h => `<td>${row[h] || ''}</td>`).join("")}</tr>`;
+          });
+          html += "</table>";
+          document.getElementById("leaderboard-content").innerHTML = html;
+        } catch (e) {
+          document.getElementById("leaderboard-content").innerHTML = '<span style="color:red">Leaderboard error.</span>';
+          console.error('Leaderboard error:', e);
+        }
+      },
+      error: function(err) {
+        document.getElementById("leaderboard-loading").style.display = "none";
+        document.getElementById("leaderboard-content").innerHTML = '<span style="color:red">Failed to load leaderboard data.</span>';
+      }
+    });
+
+    // Highlight active nav link on scroll
+    const navLinks = document.querySelectorAll('.top-nav .nav-link');
+    const sectionIds = ['dashboard', 'leaderboard', 'conversion', 'outbound'];
+    const sectionEls = sectionIds.map(id => document.getElementById(id));
+    function onScroll() {
+      let scrollPos = window.scrollY + 70;
+      let activeIdx = 0;
+      for (let i = 0; i < sectionEls.length; i++) {
+        if (sectionEls[i] && sectionEls[i].offsetTop <= scrollPos) {
+          activeIdx = i;
+        }
+      }
+      navLinks.forEach((link, idx) => {
+        if (idx === activeIdx) link.classList.add('active');
+        else link.classList.remove('active');
+      });
+    }
+    window.addEventListener('scroll', onScroll);
+    onScroll();
+  </script>
+</body>
+</html>
