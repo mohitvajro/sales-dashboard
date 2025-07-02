@@ -472,6 +472,10 @@
         <label for="source-filter" style="font-weight:600; color:#6366f1;">Source:</label>
         <select id="source-filter" style="margin-left:6px; padding:4px 10px; border-radius:6px; border:1px solid #c7d2fe;"></select>
       </div>
+      <div>
+        <label for="gmv-filter" style="font-weight:600; color:#6366f1;">GMV Sizing:</label>
+        <select id="gmv-filter" style="margin-left:6px; padding:4px 10px; border-radius:6px; border:1px solid #c7d2fe;"></select>
+      </div>
       <div style="flex:1;"></div>
       <input id="deal-search" type="text" placeholder="Search deals or AE..." style="padding:7px 14px; border-radius:8px; border:1px solid #c7d2fe; min-width:220px; font-size:1em;" />
     </div>
@@ -562,17 +566,31 @@
         // Populate dropdowns
         const aeFilter = document.getElementById('ae-filter');
         const sourceFilter = document.getElementById('source-filter');
-        aeFilter.innerHTML = '<option value="">All</option>' + allAEs.map(ae => `<option value="${ae}">${ae}</option>`).join("");
-        sourceFilter.innerHTML = '<option value="">All</option>' + allSources.map(src => `<option value="${src}">${src}</option>`).join("");
+        const gmvFilter = document.getElementById('gmv-filter');
+        // Collect unique GMV Sizing values
+        let allGMVSizing = new Set();
+        // Only collect unique values ONCE
+        data.forEach(row => {
+          if (row[mrrCol] && row[mrrCol].includes("$") && row[aeCol]) {
+            if (row['GMV Sizing']) allGMVSizing.add(row['GMV Sizing'].trim());
+          }
+        });
+        // Do NOT reassign allAEs and allSources here!
+        allGMVSizing = Array.from(allGMVSizing).sort();
+        aeFilter.innerHTML = '<option value="">All</option>' + Array.from(allAEs).sort().map(ae => `<option value="${ae}">${ae}</option>`).join("");
+        sourceFilter.innerHTML = '<option value="">All</option>' + Array.from(allSources).sort().map(src => `<option value="${src}">${src}</option>`).join("");
+        gmvFilter.innerHTML = '<option value="">All</option>' + allGMVSizing.map(gmv => `<option value="${gmv}">${gmv}</option>`).join("");
         // --- Filtering/search logic ---
         function getFiltered() {
           const aeVal = aeFilter.value;
           const srcVal = sourceFilter.value;
+          const gmvVal = gmvFilter.value;
           const searchVal = (document.getElementById('deal-search').value || '').toLowerCase();
           return data.filter(row => {
             if (!(row[mrrCol] && row[mrrCol].includes("$") && row[aeCol])) return false;
             if (aeVal && row[aeCol].trim() !== aeVal) return false;
             if (srcVal && (row[sourceCol] || '').trim() !== srcVal) return false;
+            if (gmvVal && (row['GMV Sizing'] || '').trim() !== gmvVal) return false;
             if (searchVal) {
               const deal = (row[dealCol] || '').toLowerCase();
               const ae = (row[aeCol] || '').toLowerCase();
@@ -635,37 +653,55 @@
           let mrrByAE = {};
           let dealCountByAE = {};
           let mrrBySource = {};
+          let gmvBySource = {};
           filtered.forEach(row => {
             const ae = (row[aeCol] || '').trim();
             const mrr = parseFloat((row[mrrCol] || "0").replace(/[$,]/g, ""));
             const source = (row[sourceCol] || '').trim();
+            const gmv = (row['GMV Sizing'] || '').trim();
             if (!mrrByAE[ae]) mrrByAE[ae] = 0;
             if (!dealCountByAE[ae]) dealCountByAE[ae] = 0;
             if (!mrrBySource[source]) mrrBySource[source] = 0;
+            if (!gmvBySource[source]) gmvBySource[source] = {};
+            if (!gmvBySource[source][gmv]) gmvBySource[source][gmv] = 0;
             mrrByAE[ae] += mrr;
             dealCountByAE[ae] += 1;
             mrrBySource[source] += mrr;
+            gmvBySource[source][gmv] += mrr;
           });
+          // Pie chart with custom hover for GMV Sizing breakdown
+          const pieLabels = Object.keys(mrrBySource);
+          const pieValues = Object.values(mrrBySource);
+          const pieCustomData = pieLabels.map(source => {
+            const gmvMap = gmvBySource[source];
+            const total = mrrBySource[source];
+            return Object.entries(gmvMap)
+              .filter(([k]) => k)
+              .map(([k, v]) => `${k}: ${(v/total*100).toFixed(1)}% ($${v.toLocaleString()})`)
+              .join('<br>');
+          });
+          Plotly.newPlot("mrr-by-source", [{
+            labels: pieLabels,
+            values: pieValues,
+            type: "pie",
+            customdata: pieCustomData,
+            hovertemplate: 'Source: %{label}<br>MRR: $%{value:,.0f}<br><b>GMV Sizing:</b><br>%{customdata}<extra></extra>'
+          }], { title: "MRR by Source (IB/OB)" });
+
+          // --- RESTORED: MRR by AE and Deal Count by AE charts ---
           Plotly.newPlot("mrr-by-ae", [{
             x: Object.keys(mrrByAE),
             y: Object.values(mrrByAE),
             type: "bar",
-            marker: { color: "#636efa" },
-            hovertemplate: 'AE: %{x}<br>MRR: $%{y:,.0f}<extra></extra>'
-          }], { title: "MRR by AE" });
+            marker: { color: "#636efa" }
+          }], { title: "MRR by AE", xaxis: { title: "AE" }, yaxis: { title: "MRR ($)" } });
+
           Plotly.newPlot("deal-count-by-ae", [{
             x: Object.keys(dealCountByAE),
             y: Object.values(dealCountByAE),
             type: "bar",
-            marker: { color: "#EF553B" },
-            hovertemplate: 'AE: %{x}<br>Deals: %{y}<extra></extra>'
-          }], { title: "Deal Count by AE" });
-          Plotly.newPlot("mrr-by-source", [{
-            labels: Object.keys(mrrBySource),
-            values: Object.values(mrrBySource),
-            type: "pie",
-            hovertemplate: 'Source: %{label}<br>MRR: $%{value:,.0f}<extra></extra>'
-          }], { title: "MRR by Source (IB/OB)" });
+            marker: { color: "#ef553b" }
+          }], { title: "Deal Count by AE", xaxis: { title: "AE" }, yaxis: { title: "Deal Count" } });
         }
         // --- Deals Table ---
         function renderTable(filtered) {
@@ -693,6 +729,7 @@
         // --- Event listeners ---
         aeFilter.onchange = renderAll;
         sourceFilter.onchange = renderAll;
+        gmvFilter.onchange = renderAll;
         document.getElementById('deal-search').oninput = renderAll;
         // Initial render
         renderAll();
